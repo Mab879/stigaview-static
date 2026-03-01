@@ -12,21 +12,43 @@ NS = {
     "xccdf-1.1": "http://checklists.nist.gov/xccdf/1.1",
 }
 
+KNOWN_DESCRIPTION_ELEMENTS = {
+    "VulnDiscussion",
+    "FalsePositives",
+    "FalseNegatives",
+    "Documentable",
+    "Mitigations",
+    "SeverityOverrideGuidance",
+    "PotentialImpacts",
+    "ThirdPartyTools",
+    "MitigationControl",
+    "Responsibility",
+    "IAControls",
+}
+
 
 def _disa_text_to_html(text: str) -> str:
     return html.escape(text, True).replace("\n", "<br />")
 
 
-def _get_description_root(stig_xml):
-    description = "<root>"
-    description += (
-        stig_xml.find("xccdf-1.1:description", NS)
-        .text.replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&", "&amp;")
+def _escape_placeholders(text: str) -> str:
+    def replacer(match):
+        tag = match.group(1)
+        if tag in KNOWN_DESCRIPTION_ELEMENTS:
+            return match.group(0)
+        return f"&lt;{tag}&gt;"
+
+    return re.sub(r"<([a-zA-Z0-9_-]+)>", replacer, text)
+
+
+def _get_description_root(stig_xml: ET.Element) -> dict:
+    raw_description = stig_xml.find("xccdf-1.1:description", NS).text
+    part_escaped = (
+        _escape_placeholders(raw_description)
         .replace("<<<", "&lt;&lt;&lt;")
+        .replace("&", "&amp;")
     )
-    description += "</root>"
+    description = f"<root>{part_escaped}</root>"
     description_root = ET.ElementTree(ET.fromstring(description)).getroot()
     return description_root
 
@@ -82,16 +104,17 @@ def import_stig(
 
 def _get_stig_version(stig_path):
     base_name = os.path.basename(stig_path)
-    matcher = r"^v(\d+)r(\d+).xml$"
+    matcher = r"^v(?P<version>\d+)r(?P<release>\d+).xml$"
     matches = re.match(matcher, base_name)
     if not matches:
         raise ValueError(f"Stig at {stig_path} cannot be version matched.")
-    version = matches.group(1)
-    release = matches.group(2)
+    groups = matches.groupdict()
+    version = groups["version"]
+    release = groups["release"]
     return release, version
 
 
 def _get_root_from_xml_path(stig_path) -> ET.ElementTree:
-    with open(stig_path) as stig_file:
+    with open(stig_path, encoding="utf-8") as stig_file:
         root = ET.ElementTree(ET.fromstring(stig_file.read()))
     return root
