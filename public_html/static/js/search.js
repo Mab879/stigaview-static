@@ -307,9 +307,23 @@ async function initializeDropdowns() {
         });
 
         // Sort product dropdown options (except the first "All Products" option)
+        // Use version-aware sorting: RHEL 8, 9, 10 instead of RHEL 10, 8, 9
         const firstOption = productSelect.options[0];
         const otherOptions = Array.from(productSelect.options).slice(1);
-        otherOptions.sort((a, b) => a.value.localeCompare(b.value));
+        otherOptions.sort((a, b) => {
+            const aMatch = a.value.match(/^(.+?)(\d+)$/);
+            const bMatch = b.value.match(/^(.+?)(\d+)$/);
+            if (aMatch && bMatch) {
+                const aPrefix = aMatch[1];
+                const bPrefix = bMatch[1];
+                const aNum = parseInt(aMatch[2], 10);
+                const bNum = parseInt(bMatch[2], 10);
+                if (aPrefix === bPrefix) {
+                    return aNum - bNum;
+                }
+            }
+            return a.value.localeCompare(b.value);
+        });
 
         productSelect.innerHTML = "";
         productSelect.appendChild(firstOption);

@@ -3,10 +3,31 @@ from __future__ import annotations
 import datetime
 import logging
 import pathlib
+import re
 import tomllib
 from typing import Dict, List
 
 from pydantic import BaseModel
+
+
+def _stig_id_sort_key(stig_id: str) -> tuple:
+    """Generate a sortable key from STIG ID for natural sorting.
+
+    Extracts alphanumeric parts from STIG IDs and sorts them naturally:
+    - RHEL-10-001020 sorts after RHEL-10-001000 (numeric comparison)
+    - WN19-00-000010 sorts before WN19-AU-000100
+
+    This allows numeric portions to be compared numerically rather than
+    lexicographically.
+    """
+    parts = re.findall(r"[A-Za-z]+|\d+", stig_id)
+    result = []
+    for part in parts:
+        if part.isdigit():
+            result.append((0, int(part)))
+        else:
+            result.append((1, part))
+    return tuple(result)
 
 
 class Srg(BaseModel):
@@ -35,10 +56,14 @@ class Control(BaseModel):
         return f"<Control {self.disa_stig_id}>"
 
     def __le__(self, other):
-        return self.disa_stig_id < other.disa_stig_id
+        return _stig_id_sort_key(self.disa_stig_id) <= _stig_id_sort_key(
+            other.disa_stig_id
+        )
 
     def __gt__(self, other):
-        return self.disa_stig_id > other.disa_stig_id
+        return _stig_id_sort_key(self.disa_stig_id) > _stig_id_sort_key(
+            other.disa_stig_id
+        )
 
     @property
     def url(self) -> str:

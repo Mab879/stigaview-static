@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from stigaview_static import models
 from stigaview_static.json_output import render_json_control
+from stigaview_static.models import _stig_id_sort_key
 from stigaview_static.utils import get_config, get_git_revision_short_hash
 
 
@@ -46,9 +47,11 @@ def render_stig_detail(out_product, product, stig):
     real_out_path = os.path.join(out_product, stig.short_version.lower())
     real_out = os.path.join(real_out_path, "index.html")
     os.makedirs(real_out_path, exist_ok=True)
+    stig.controls = sorted(
+        stig.controls, key=lambda c: _stig_id_sort_key(c.disa_stig_id)
+    )
     render_template("stig.html", real_out, product=product, stig=stig)
     one_page_out = os.path.join(real_out_path, "onepage")
-    stig.controls = sorted(stig.controls)
     render_onepage_stig_detail(one_page_out, product, stig)
     return real_out_path
 
