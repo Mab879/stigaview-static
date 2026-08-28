@@ -1,7 +1,11 @@
+import datetime
 import logging
 import multiprocessing
 import os.path
+import pathlib
 import shutil
+import xml.etree.ElementTree as ET
+from typing import List
 
 import minify_html
 from jinja2 import Environment, FileSystemLoader
@@ -18,10 +22,22 @@ def _severity_to_cat(severity: str) -> str:
     return mapping.get(severity.lower(), severity)
 
 
+def _cci_list_to_links(cci_list: list) -> str:
+    """Convert a list of CCI IDs to HTML links."""
+    return ", ".join(f'<a href="/ccis/{cci_id}">{cci_id}</a>' for cci_id in cci_list)
+
+
+def _datetime_element(date_str: str) -> str:
+    """Format date string to human-readable format."""
+    return f'<time datetime="{date_str}">{date_str}</time>'
+
+
 def render_template(template: str, out_path: str, **kwargs):
     file_loader = FileSystemLoader("templates")
     env = Environment(loader=file_loader)
     env.filters["severity_to_cat"] = _severity_to_cat
+    env.filters["cci_list_to_links"] = _cci_list_to_links
+    env.filters["datetime_element"] = _datetime_element
     template = env.get_template(template)
     config = get_config()
     context = kwargs | config
@@ -143,6 +159,77 @@ def render_srg_details(srgs: dict, out_path: str) -> None:
         os.makedirs(full_out_path, exist_ok=True)
         full_out = os.path.join(full_out_path, "index.html")
         render_template("srg_detail.html", full_out, controls=controls, srg_id=srg_id)
+
+
+def create_cci(project_root: str, out_path: str) -> None:
+    logging.info("Processing CCI")
+    real_out = os.path.join(out_path, "ccis")
+    full_out_path = os.path.join(real_out, "index.html")
+    os.makedirs(real_out, exist_ok=True)
+    cci_path = (
+        pathlib.Path(project_root).parent.joinpath("cci").joinpath("cci_list.xml")
+    )
+    ns = {"cci": "http://iase.disa.mil/cci"}
+    cci_root = ET.parse(cci_path).getroot()
+    disa_ccis: List[models.DisaCCI] = list()
+    xml_ccis = cci_root.findall("cci:cci_items/cci:cci_item", ns)
+    logging.debug("Processing CCI %s", len(xml_ccis))
+    with tqdm(total=len(xml_ccis), desc="Processing CCI", unit="cci") as pbar:
+        for cci in xml_ccis:
+            id = cci.attrib["id"]
+            status = cci.find("cci:status", ns).text
+            publishdate = datetime.date.fromisoformat(
+                cci.find("cci:publishdate", ns).text
+            )
+            contributor = cci.find("cci:contributor", ns).text
+            definition = cci.find("cci:definition", ns).text
+            type = cci.find("cci:type", ns).text
+            references = []
+            for reference in cci.findall("cci:references/cci:reference", ns):
+                creator = reference.get("creator")
+                title = reference.get("title")
+                version = reference.get("version")
+                location = reference.get("location")
+                index = reference.get("index")
+                if not all([creator, title, version, location]):
+                    logging.warning(
+                        "Skipping malformed reference for CCI %s: creator=%r title=%r version=%r location=%r index=%r",
+                        id,
+                        creator,
+                        title,
+                        version,
+                        location,
+                        index,
+                    )
+                    continue
+                ref = models.DISACCIReference(
+                    creator=creator,
+                    title=title,
+                    version=version,
+                    location=location,
+                    index=index,
+                )
+                references.append(ref)
+                logging.debug("Processing reference for CCI %s: %s", id, ref)
+            disa_cci = models.DisaCCI(
+                id=id,
+                status=status,
+                publishdate=publishdate,
+                contributor=contributor,
+                definition=definition,
+                type=type,
+                references=references,
+            )
+            disa_ccis.append(disa_cci)
+            cci_full_out_path = os.path.join(real_out, id.lower())
+            os.makedirs(cci_full_out_path, exist_ok=True)
+            cci_full_out = os.path.join(cci_full_out_path, "index.html")
+            render_template(
+                "cci.html", cci_full_out, disa_cci=disa_cci, disa_ccis=disa_ccis
+            )
+            pbar.update(1)
+
+    render_template("ccis.html", full_out_path, disa_ccis=sorted(disa_ccis))
 
 
 def _copy_latest_stig(out_product: str, product: models.Product):

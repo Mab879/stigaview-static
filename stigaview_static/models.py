@@ -150,3 +150,31 @@ class StigAViewConfig(BaseModel):
     site_path: str
     products_path: str
     use_search: bool
+
+
+class DISACCIReference(BaseModel):
+    creator: str
+    title: str
+    version: str
+    location: str
+    index: str
+
+
+class DisaCCI(BaseModel):
+    id: str
+    status: str
+    publishdate: datetime.date
+    contributor: str
+    definition: str
+    type: str
+    references: List[DISACCIReference]
+
+    def __le__(self, other):
+        return self.id < other.id
+
+    def __gt__(self, other):
+        return self.id > other.id
+
+    @property
+    def url(self) -> str:
+        return f"/ccis/{self.id}".lower()

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{{ disa_cci.id }}{% endblock %}
+{% block content %}
+<h1>{{ disa_cci.id }} - {{ disa_cci.definition }}</h1>
+<p>
+    <b>Publish Date:</b> {{ disa_cci.publishdate | datetime_element }}&nbsp;|&nbsp;
+    <b>Status:</b> {{ disa_cci.status }}&nbsp;|&nbsp;
+    <b>Contributor:</b> {{ disa_cci.contributor }}&nbsp;|&nbsp;
+    <b>Type:</b> {{ disa_cci.type }}
+</p>
+{% if disa_cci.references %}
+<h2>References</h2>
+<ul>
+{% for ref in disa_cci.references %}
+    <li>{{ ref.creator }} - {{ ref.title }} ({{ ref.version }}) - <a href="{{ ref.location }}">{{ ref.index }}</a></li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

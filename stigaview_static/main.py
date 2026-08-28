@@ -73,6 +73,7 @@ def main() -> None:
     )
     _prep_models()
     config = load_config(args.config)
+    html_output.create_cci(args.input, args.out_dir)
     products, srg_dict = process_products(config, args.input)
     html_output.render_stig_index(products, args.out_dir)
     html_output.render_srg_index(srg_dict, args.out_dir)

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}CCIs{% endblock %}
+{% block content %}
+<h1>Latest STIGs</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Definition</th>
+            <th>Status</th>
+            <th>Release Date</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for cci in disa_ccis %}
+        <tr>
+            <td><a href="{{ cci.url }}">{{ cci.id }}</a></td>
+            <td>{{ cci.definition }}</td>
+            <td>{{ cci.status }}</td>
+            <td>{{ cci.publishdate }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
